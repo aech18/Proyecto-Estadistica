@@ -7,6 +7,8 @@ import {
   ScrollView,
   StyleSheet,
   Alert,
+  Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -48,6 +50,14 @@ function calcANOVA(groups) {
 
 function fmt(n, d = 4) {
   return isFinite(n) ? n.toFixed(d) : '—';
+}
+
+function showAlert(title, message) {
+  if (Platform.OS === 'web' && typeof globalThis.alert === 'function') {
+    globalThis.alert(`${title}\n${message}`);
+    return;
+  }
+  Alert.alert(title, message);
 }
 
 // ─── Componente Tabla ANOVA ───────────────────────────────────────────────────
@@ -127,6 +137,8 @@ function AnovaTable({ result }) {
 // ─── Pantalla Principal ───────────────────────────────────────────────────────
 
 export default function AnovaScreen() {
+  const { width } = useWindowDimensions();
+  const isDesktopWeb = Platform.OS === 'web' && width >= 1024;
   const [g1, setG1] = useState('3.30, 3.42, 3.36, 3.34');
   const [g2, setG2] = useState('3.25, 3.15, 3.30, 3.20');
   const [g3, setG3] = useState('3.10, 3.25, 3.18, 3.12');
@@ -135,7 +147,7 @@ export default function AnovaScreen() {
   function handleCalcular() {
     const groups = [parseArray(g1), parseArray(g2), parseArray(g3)];
     if (groups.some((g) => g.length < 2)) {
-      Alert.alert('Error', 'Cada grupo debe tener al menos 2 valores numéricos.');
+      showAlert('Error', 'Cada grupo debe tener al menos 2 valores numéricos.');
       return;
     }
     setResult(calcANOVA(groups));
@@ -151,7 +163,10 @@ export default function AnovaScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <ScrollView
-        contentContainerStyle={styles.container}
+        contentContainerStyle={[
+          styles.container,
+          isDesktopWeb && styles.containerDesktop,
+        ]}
         keyboardShouldPersistTaps="handled"
       >
         {/* Cabecera */}
@@ -217,6 +232,12 @@ export default function AnovaScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#F5F7FA' },
   container: { padding: 16, paddingBottom: 32 },
+  containerDesktop: {
+    width: '100%',
+    maxWidth: 1100,
+    alignSelf: 'center',
+    paddingHorizontal: 24,
+  },
 
   header: { marginBottom: 12 },
   headerTitle: {
