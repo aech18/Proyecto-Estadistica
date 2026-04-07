@@ -8,6 +8,8 @@ import {
   StyleSheet,
   Alert,
   Switch,
+  Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -138,6 +140,14 @@ function fmt(n, d = 4) {
   return n != null && isFinite(n) ? n.toFixed(d) : '—';
 }
 
+function showAlert(title, message) {
+  if (Platform.OS === 'web' && typeof globalThis.alert === 'function') {
+    globalThis.alert(`${title}\n${message}`);
+    return;
+  }
+  Alert.alert(title, message);
+}
+
 // ─── Tabla ANOVA de la Regresión ──────────────────────────────────────────────
 
 function AnovaRLMTable({ res }) {
@@ -176,6 +186,9 @@ function AnovaRLMTable({ res }) {
 // ─── Pantalla Principal ───────────────────────────────────────────────────────
 
 export default function RegressionScreen() {
+  const { width } = useWindowDimensions();
+  const isDesktopWeb = Platform.OS === 'web' && width >= 1024;
+  const numericKeyboardType = Platform.OS === 'web' ? 'default' : 'decimal-pad';
   const [data, setData] = useState(
     DATOS_EJEMPLO.map((r) => ({ ...r })).map((r) =>
       Object.fromEntries(Object.entries(r).map(([k, v]) => [k, String(v)]))
@@ -206,19 +219,19 @@ export default function RegressionScreen() {
       )
     );
     if (parsed.some((r) => Object.values(r).some(isNaN))) {
-      Alert.alert('Error', 'Todos los valores deben ser numéricos.');
+      showAlert('Error', 'Todos los valores deben ser numéricos.');
       return;
     }
     const preds = ['x1', 'x2', 'x3', 'x4'].filter(
       (p, i) => [useX1, useX2, useX3, useX4][i]
     );
     if (preds.length === 0) {
-      Alert.alert('Error', 'Seleccione al menos un predictor.');
+      showAlert('Error', 'Seleccione al menos un predictor.');
       return;
     }
     const r = calcRLM(parsed, preds);
     if (!r) {
-      Alert.alert('Error', 'No se pudo invertir la matriz (datos colineales).');
+      showAlert('Error', 'No se pudo invertir la matriz (datos colineales).');
       return;
     }
     setResult(r);
@@ -226,10 +239,10 @@ export default function RegressionScreen() {
   }
 
   function handlePredecir() {
-    if (!result) { Alert.alert('Atencion', 'Primero calcule el modelo.'); return; }
+    if (!result) { showAlert('Atención', 'Primero calcule el modelo.'); return; }
     const vals = result.predictors.map((p) => parseFloat(predValues[p]));
     if (vals.some(isNaN)) {
-      Alert.alert('Error', 'Ingrese valores válidos para la predicción.');
+      showAlert('Error', 'Ingrese valores válidos para la predicción.');
       return;
     }
     const yp = result.beta[0] + vals.reduce((s, v, i) => s + result.beta[i + 1] * v, 0);
@@ -247,7 +260,13 @@ export default function RegressionScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
-      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={[
+          styles.container,
+          isDesktopWeb && styles.containerDesktop,
+        ]}
+        keyboardShouldPersistTaps="handled"
+      >
 
         {/* Cabecera */}
         <View style={styles.header}>
@@ -304,7 +323,7 @@ export default function RegressionScreen() {
                       style={[styles.tCell, styles.tCellInput, styles.dataCell]}
                       value={row[k]}
                       onChangeText={(v) => updateCell(idx, k, v)}
-                      keyboardType="decimal-pad"
+                      keyboardType={numericKeyboardType}
                     />
                   ))}
                 </View>
@@ -402,7 +421,7 @@ export default function RegressionScreen() {
                         style={styles.input}
                         value={predValues[p]}
                         onChangeText={(v) => setPredValues((pr) => ({ ...pr, [p]: v }))}
-                        keyboardType="decimal-pad"
+                        keyboardType={numericKeyboardType}
                         placeholder="0.0"
                         placeholderTextColor="#90A4AE"
                       />
@@ -433,6 +452,12 @@ export default function RegressionScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#F5F7FA' },
   container: { padding: 16, paddingBottom: 40 },
+  containerDesktop: {
+    width: '100%',
+    maxWidth: 1200,
+    alignSelf: 'center',
+    paddingHorizontal: 24,
+  },
 
   header: { marginBottom: 12 },
   headerTitle: { fontSize: 22, fontWeight: '800', color: '#1B5E20', letterSpacing: 0.3 },

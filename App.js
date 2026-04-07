@@ -8,6 +8,15 @@ import AnovaScreen from './screens/AnovaScreen';
 import RegressionScreen from './screens/RegressionScreen';
 
 const Tab = createBottomTabNavigator();
+const linking = {
+  prefixes: [],
+  config: {
+    screens: {
+      ANOVA: 'anova',
+      Regresion: 'regresion',
+    },
+  },
+};
 
 function TabIcon({ label, focused }) {
   const icons = {
@@ -35,7 +44,7 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <StatusBar barStyle="dark-content" backgroundColor="#F5F7FA" />
-      <NavigationContainer>
+      <NavigationContainer linking={linking}>
         <Tab.Navigator
           screenOptions={{
             headerStyle: {

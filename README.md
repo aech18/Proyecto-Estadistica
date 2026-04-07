@@ -29,6 +29,12 @@ npx expo start
 ```
 Se abrirá una pestaña en tu navegador con un código QR.
 
+### 3. Ejecutar versión Web
+```bash
+npm run web
+```
+Luego abre `http://localhost:8081` en tu navegador.
+
 ---
 
 ## 📲 Ejecución en Dispositivos
@@ -48,6 +54,35 @@ Se abrirá una pestaña en tu navegador con un código QR.
 - **Emulador:**
   1. Asegúrate de tener Android Studio y el emulador abierto.
   2. Presiona `a` en la terminal.
+
+---
+
+## 🌐 Build Web de Producción
+
+Genera archivos estáticos para despliegue:
+
+```bash
+npm run build:web
+```
+
+Los archivos de salida se crean en la carpeta `dist/`.
+
+---
+
+## 🚀 Despliegue Web
+
+### Vercel
+- Framework preset: **Other**
+- Build command: `npm run build:web`
+- Output directory: `dist`
+
+### Netlify
+- Build command: `npm run build:web`
+- Publish directory: `dist`
+
+### GitHub Pages
+- Publica el contenido de `dist/` en tu rama de páginas.
+- Si usas rutas distintas a `/`, configura el proyecto para servir desde raíz o añade fallback de SPA (`404.html` apuntando a `index.html`).
 
 ---
 
