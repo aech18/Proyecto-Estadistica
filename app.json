@@ -22,6 +22,9 @@
       },
       "edgeToEdgeEnabled": true
     },
+    "experiments": {
+      "baseUrl": "/Proyecto-Estadistica"
+    },
     "web": {
       "favicon": "./assets/favicon.png"
     }
