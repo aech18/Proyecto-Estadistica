@@ -81,8 +81,11 @@ Los archivos de salida se crean en la carpeta `dist/`.
 - Publish directory: `dist`
 
 ### GitHub Pages
-- Publica el contenido de `dist/` en tu rama de páginas.
-- Si usas rutas distintas a `/`, configura el proyecto para servir desde raíz o añade fallback de SPA (`404.html` apuntando a `index.html`).
+1. Sube tus cambios a la rama `main`.
+2. En GitHub ve a **Settings → Pages**.
+3. En **Build and deployment**, selecciona **Source: GitHub Actions**.
+4. El workflow `.github/workflows/deploy-pages.yml` hará el build (`npm run build:web`) y publicará `dist/` automáticamente.
+5. URL esperada: `https://aech18.github.io/Proyecto-Estadistica/`.
 
 ---
 
