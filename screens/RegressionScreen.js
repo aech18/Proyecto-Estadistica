@@ -37,6 +37,10 @@ const DATOS_EJEMPLO = [
   { y: 10.6, x1: 3.9, x2: 3.8, x3: 3.4, x4: 4.0 },
   { y: 7.9, x1: 3.4, x2: 3.8, x3: 3.4, x4: 3.4 },
 ];
+// Valor crítico t bilateral para 95% (α=0.05), gl=15
+const T_CRIT_95_DF15 = 2.131;
+const MIN_SE_THRESHOLD = 1e-10;
+const DEPENDENT_VAR_LABEL = 'Uso de CPU';
 
 // ─── Cálculos RLM (Mínimos Cuadrados) usando álgebra matricial JavaScript ────
 
@@ -257,6 +261,37 @@ export default function RegressionScreen() {
     { key: 'x3', label: 'x₃ Latencia BD', val: useX3, set: setUseX3 },
     { key: 'x4', label: 'x₄ Memoria µsrv', val: useX4, set: setUseX4 },
   ];
+  const coefRows = result
+    ? result.beta.map((b, i) => {
+        const isIntercept = i === 0;
+        const predictor = isIntercept ? null : result.predictors[i - 1];
+        const varLabel = isIntercept
+          ? 'β₀ (intercepto)'
+          : `β${i} (${predictor})`;
+        const se = result.seBeta[i];
+        const evaluable = se > MIN_SE_THRESHOLD;
+        const t = evaluable ? b / se : null;
+        const lower95 = b - T_CRIT_95_DF15 * se;
+        const upper95 = b + T_CRIT_95_DF15 * se;
+        const significant = evaluable ? Math.abs(t) > T_CRIT_95_DF15 : false;
+        return {
+          i,
+          varLabel,
+          predictor,
+          b,
+          se,
+          t,
+          lower95,
+          upper95,
+          significant,
+          evaluable,
+          isPredictor: !isIntercept,
+        };
+      })
+    : [];
+  const nonSignificantPredictors = coefRows
+    .filter((row) => row.isPredictor && !row.significant)
+    .map((row) => row.predictor);
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
@@ -358,6 +393,9 @@ export default function RegressionScreen() {
                   <Text style={styles.r2Label}>s (error std)</Text>
                 </View>
               </View>
+              <Text style={styles.r2Interpretation}>
+                El {fmt(result.R2 * 100, 2)}% de la variabilidad en el {DEPENDENT_VAR_LABEL} es explicado por las variables predictoras incluidas en el modelo.
+              </Text>
             </View>
 
             {/* Coeficientes */}
@@ -366,20 +404,30 @@ export default function RegressionScreen() {
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 <View>
                   <View style={[styles.tRow, styles.tHeader]}>
-                    {['Parámetro', 'Estimado', 'Error std', 't calc'].map((h) => (
+                    {[
+                      'Parámetro',
+                      'Estimado',
+                      'Error std',
+                      't calc',
+                      'Límite Inferior (95%)',
+                      'Límite Superior (95%)',
+                      'Significativo',
+                    ].map((h) => (
                       <Text key={h} style={[styles.tCell, styles.tCellHead, styles.coefCell]}>{h}</Text>
                     ))}
                   </View>
-                  {result.beta.map((b, i) => {
-                    const name = i === 0 ? 'β₀ (intercepto)' : `β${i} (${result.predictors[i - 1]})`;
-                    const se = result.seBeta[i];
-                    const t = b / se;
+                  {coefRows.map((row) => {
                     return (
-                      <View key={i} style={[styles.tRow, i % 2 === 0 ? styles.tRowEven : styles.tRowOdd]}>
-                        <Text style={[styles.tCell, styles.tCellLabel, styles.coefCell]}>{name}</Text>
-                        <Text style={[styles.tCell, styles.coefCell, styles.betaVal]}>{fmt(b)}</Text>
-                        <Text style={[styles.tCell, styles.coefCell]}>{fmt(se)}</Text>
-                        <Text style={[styles.tCell, styles.coefCell, styles.fVal]}>{fmt(t)}</Text>
+                      <View key={row.i} style={[styles.tRow, row.i % 2 === 0 ? styles.tRowEven : styles.tRowOdd]}>
+                        <Text style={[styles.tCell, styles.tCellLabel, styles.coefCell]}>{row.varLabel}</Text>
+                        <Text style={[styles.tCell, styles.coefCell, styles.betaVal]}>{fmt(row.b)}</Text>
+                        <Text style={[styles.tCell, styles.coefCell]}>{fmt(row.se)}</Text>
+                        <Text style={[styles.tCell, styles.coefCell, styles.fVal]}>{fmt(row.t)}</Text>
+                        <Text style={[styles.tCell, styles.coefCell]}>{fmt(row.lower95)}</Text>
+                        <Text style={[styles.tCell, styles.coefCell]}>{fmt(row.upper95)}</Text>
+                        <Text style={[styles.tCell, styles.coefCell, row.significant ? styles.betaVal : styles.fVal]}>
+                          {!row.evaluable ? 'No evaluable' : row.significant ? 'Sí' : 'No'}
+                        </Text>
                       </View>
                     );
                   })}
@@ -437,6 +485,19 @@ export default function RegressionScreen() {
                     </View>
                   )}
                 </View>
+              )}
+            </View>
+
+            <View style={[styles.card, styles.recommendationCard]}>
+              <Text style={styles.recommendationTitle}>📌 Recomendación del modelo (Punto 7)</Text>
+              {nonSignificantPredictors.length > 0 ? (
+                <Text style={styles.recommendationText}>
+                  Se recomienda un modelo reducido eliminando la(s) variable(s) {nonSignificantPredictors.join(', ')}, ya que su aporte no es estadísticamente significativo al 5%.
+                </Text>
+              ) : (
+                <Text style={styles.recommendationText}>
+                  Todas las variables activas son estadísticamente significativas al 5%; se recomienda conservar el modelo actual.
+                </Text>
               )}
             </View>
 
@@ -537,6 +598,7 @@ const styles = StyleSheet.create({
   r2Item: { alignItems: 'center' },
   r2Value: { fontSize: 22, fontWeight: '800', color: '#1B5E20' },
   r2Label: { fontSize: 11, color: '#607D8B', marginTop: 2 },
+  r2Interpretation: { fontSize: 12, color: '#37474F', marginTop: 10, lineHeight: 18 },
 
   modelBox: {
     backgroundColor: '#F3E5F5',
@@ -571,4 +633,11 @@ const styles = StyleSheet.create({
   },
   predResultLabel: { color: '#A5D6A7', fontSize: 13, marginBottom: 4 },
   predResultValue: { color: '#FFFFFF', fontSize: 28, fontWeight: '800' },
+  recommendationCard: {
+    backgroundColor: '#FFF8E1',
+    borderLeftWidth: 4,
+    borderLeftColor: '#F9A825',
+  },
+  recommendationTitle: { fontSize: 14, fontWeight: '800', color: '#EF6C00', marginBottom: 8 },
+  recommendationText: { fontSize: 13, color: '#5D4037', lineHeight: 20, fontWeight: '600' },
 });
