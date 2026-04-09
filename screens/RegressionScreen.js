@@ -37,7 +37,10 @@ const DATOS_EJEMPLO = [
   { y: 10.6, x1: 3.9, x2: 3.8, x3: 3.4, x4: 4.0 },
   { y: 7.9, x1: 3.4, x2: 3.8, x3: 3.4, x4: 3.4 },
 ];
+// Valor crítico t bilateral para 95% (α=0.05), gl=15
 const T_CRIT_95_DF15 = 2.131;
+const MIN_SE_THRESHOLD = 1e-10;
+const DEPENDENT_VAR_LABEL = 'Uso de CPU';
 
 // ─── Cálculos RLM (Mínimos Cuadrados) usando álgebra matricial JavaScript ────
 
@@ -266,10 +269,11 @@ export default function RegressionScreen() {
           ? 'β₀ (intercepto)'
           : `β${i} (${predictor})`;
         const se = result.seBeta[i];
-        const t = se === 0 ? Number.POSITIVE_INFINITY : b / se;
+        const evaluable = se > MIN_SE_THRESHOLD;
+        const t = evaluable ? b / se : null;
         const lower95 = b - T_CRIT_95_DF15 * se;
         const upper95 = b + T_CRIT_95_DF15 * se;
-        const significant = Math.abs(t) > T_CRIT_95_DF15;
+        const significant = evaluable ? Math.abs(t) > T_CRIT_95_DF15 : false;
         return {
           i,
           varLabel,
@@ -280,6 +284,7 @@ export default function RegressionScreen() {
           lower95,
           upper95,
           significant,
+          evaluable,
           isPredictor: !isIntercept,
         };
       })
@@ -389,7 +394,7 @@ export default function RegressionScreen() {
                 </View>
               </View>
               <Text style={styles.r2Interpretation}>
-                El {fmt(result.R2 * 100, 2)}% de la variabilidad en el Uso de CPU es explicada por las variables predictoras incluidas en el modelo.
+                El {fmt(result.R2 * 100, 2)}% de la variabilidad en el {DEPENDENT_VAR_LABEL} es explicado por las variables predictoras incluidas en el modelo.
               </Text>
             </View>
 
@@ -421,7 +426,7 @@ export default function RegressionScreen() {
                         <Text style={[styles.tCell, styles.coefCell]}>{fmt(row.lower95)}</Text>
                         <Text style={[styles.tCell, styles.coefCell]}>{fmt(row.upper95)}</Text>
                         <Text style={[styles.tCell, styles.coefCell, row.significant ? styles.betaVal : styles.fVal]}>
-                          {row.significant ? 'Sí' : 'No'}
+                          {!row.evaluable ? 'No evaluable' : row.significant ? 'Sí' : 'No'}
                         </Text>
                       </View>
                     );

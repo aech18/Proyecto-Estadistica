@@ -36,6 +36,9 @@ const DUNCAN_R_ALPHA_005_GL9 = {
   2: 3.10,
   3: 3.26,
 };
+// Aproximación para α=0.05 en Lilliefors: D_crit ≈ 0.886 / √n (usada típicamente para n≈4..100).
+const LILLIEFORS_D_CRIT_COEFF_005 = 0.886;
+const NUMERIC_EPSILON = 1e-12;
 const COCHRAN_C_CRIT_K3_N4 = 0.7457;
 const Z_CRIT_005_BILATERAL = 1.96;
 const CHI2_CRIT_DF2_005 = 5.991;
@@ -100,7 +103,7 @@ function sampleVariance(arr) {
 function calculateLilliefors(residuals) {
   const n = residuals.length;
   const mean = residuals.reduce((a, b) => a + b, 0) / n;
-  const sd = Math.sqrt(sampleVariance(residuals)) || 1e-12;
+  const sd = Math.sqrt(sampleVariance(residuals)) || NUMERIC_EPSILON;
   const zSorted = residuals.map((r) => (r - mean) / sd).sort((a, b) => a - b);
 
   let dPlus = 0;
@@ -113,7 +116,7 @@ function calculateLilliefors(residuals) {
   });
 
   const dCalc = Math.max(dPlus, dMinus);
-  const dCrit = 0.886 / Math.sqrt(n);
+  const dCrit = LILLIEFORS_D_CRIT_COEFF_005 / Math.sqrt(n);
   return {
     dCalc,
     dCrit,
@@ -151,7 +154,7 @@ function calculateRunsTest(residuals) {
   const variance =
     (2 * n1 * n2 * (2 * n1 * n2 - n1 - n2)) /
     (Math.pow(n1 + n2, 2) * (n1 + n2 - 1));
-  const sigma = Math.sqrt(Math.max(variance, 1e-12));
+  const sigma = Math.sqrt(Math.max(variance, NUMERIC_EPSILON));
   const zCalc = Math.abs((runs - mu) / sigma);
   const independent = zCalc <= Z_CRIT_005_BILATERAL;
 
@@ -195,36 +198,42 @@ function calculateDuncan(means, ns, mse) {
   for (let i = 0; i < order.length; i++) {
     for (let j = i + 1; j < order.length; j++) {
       const p = j - i + 1;
-      const rAlpha = DUNCAN_R_ALPHA_005_GL9[p] ?? DUNCAN_R_ALPHA_005_GL9[2];
-      const rp = rAlpha * Math.sqrt(mse / nBar);
+      const rAlpha = DUNCAN_R_ALPHA_005_GL9[p];
+      const supported = rAlpha != null;
+      const rp = supported ? rAlpha * Math.sqrt(mse / nBar) : NaN;
       const diff = Math.abs(order[i].mean - order[j].mean);
       comparisons.push({
         a: order[i],
         b: order[j],
         p,
         rAlpha,
+        supported,
         rp,
         diff,
-        significant: diff > rp,
+        significant: supported ? diff > rp : null,
       });
     }
   }
 
   const idxSwiftPay = 2;
   const meanSwiftPay = means[idxSwiftPay];
+  // En este problema la métrica es latencia: menor media implica mejor arquitectura.
   const isBestMean = meanSwiftPay === Math.min(...means);
   const swiftPayComparisons = comparisons.filter(
     (c) => c.a.idx === idxSwiftPay || c.b.idx === idxSwiftPay
   );
   const betterAndSignificant = swiftPayComparisons.every((c) => {
+    if (!c.supported || c.significant == null) return false;
     const otherMean = c.a.idx === idxSwiftPay ? c.b.mean : c.a.mean;
     return meanSwiftPay < otherMean && c.significant;
   });
   const recommendSwiftPay = isBestMean && betterAndSignificant;
+  const hasUnsupportedComparisons = comparisons.some((c) => !c.supported);
 
   return {
     comparisons,
     recommendSwiftPay,
+    hasUnsupportedComparisons,
     conclusion: recommendSwiftPay
       ? 'Duncan: se recomienda SwiftPay (A3), presenta menor latencia con diferencias significativas.'
       : 'Duncan: no hay evidencia suficiente para recomendar únicamente SwiftPay (A3).',
@@ -431,10 +440,19 @@ function AnovaTable({ result, kruskal }) {
           <Text key={idx} style={styles.testRow}>
             {cmp.a.name} vs {cmp.b.name}: |Δ|={fmt(cmp.diff, 4)}  |  Rp(p={cmp.p})={fmt(cmp.rp, 4)}  →{' '}
             <Text style={cmp.significant ? styles.reject : styles.accept}>
-              {cmp.significant ? 'Diferentes' : 'No diferentes'}
+              {cmp.supported
+                ? cmp.significant
+                  ? 'Diferentes'
+                  : 'No diferentes'
+                : 'p no soportado en tabla interna'}
             </Text>
           </Text>
         ))}
+        {duncan.hasUnsupportedComparisons && (
+          <Text style={styles.testRow}>
+            Aviso: hay comparaciones con p no soportado por la tabla interna de Duncan.
+          </Text>
+        )}
         <Text style={[styles.conclusionText, duncan.recommendSwiftPay ? styles.accept : styles.reject]}>
           {duncan.conclusion}
         </Text>
